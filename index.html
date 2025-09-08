@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <title>نظام الحسابات اليومية</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+
+        header {
+            background: #007BFF;
+            color: white;
+            padding: 10px;
+            text-align: center;
+        }
+
+        main {
+            padding: 20px;
+            max-width: 900px;
+            margin: auto;
+        }
+
+        h2 {
+            margin-bottom: 10px;
+        }
+
+        input,
+        button,
+        select {
+            padding: 6px;
+            margin: 5px 0;
+        }
+
+        button {
+            background: #007BFF;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 6px;
+            text-align: center;
+        }
+
+        th {
+            background: #007BFF;
+            color: white;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .error {
+            color: red;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>نظام الحسابات اليومية</h1>
+    </header>
+    <main>
+        <!-- صفحة تسجيل الدخول -->
+        <div id="loginPage">
+            <h2>تسجيل الدخول</h2>
+            <input type="text" id="loginUser" placeholder="الإيميل"><br>
+            <input type="password" id="loginPass" placeholder="كلمة المرور"><br>
+            <button onclick="login()">دخول</button>
+            <p id="loginMsg" class="error"></p>
+        </div>
+
+        <!-- صفحة الحسابات اليومية -->
+        <div id="recordsPage" class="hidden">
+            <h2>الحسابات اليومية</h2>
+            <input type="text" id="empName" placeholder="اسم الموظف">
+            <input type="date" id="empDate">
+            <input type="text" id="empPhone" placeholder="رقم التليفون">
+            <input type="number" id="empValue" placeholder="القيمة">
+            <button onclick="saveRecord()">حفظ</button>
+
+            <table id="recordsTable">
+                <thead>
+                    <tr>
+                        <th>اسم الموظف</th>
+                        <th>التاريخ</th>
+                        <th>التليفون</th>
+                        <th>القيمة</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+
+            <button onclick="logout()">تسجيل خروج</button>
+        </div>
+
+        <!-- صفحة إدارة المستخدمين -->
+        <div id="adminPage" class="hidden">
+            <h2>إدارة المستخدمين</h2>
+            <input type="text" id="newUser" placeholder="إيميل المستخدم الجديد">
+            <input type="password" id="newPass" placeholder="كلمة المرور">
+            <select id="newRole">
+                <option value="employee">موظف</option>
+                <option value="manager">مدير</option>
+            </select>
+            <button onclick="addUser()">إضافة مستخدم</button>
+            <p id="userMsg" class="error"></p>
+
+            <table id="usersTable">
+                <thead>
+                    <tr>
+                        <th>المستخدم</th>
+                        <th>الدور</th>
+                        <th>إجراءات</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </main>
+
+    <script>
+        function login() {
+            let u = document.getElementById("loginUser").value.trim();
+            let p = document.getElementById("loginPass").value;
+            let msg = document.getElementById("loginMsg");
+
+            fetch('login.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: u, password: p })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        document.getElementById("loginPage").classList.add("hidden");
+                        document.getElementById("recordsPage").classList.remove("hidden");
+                        if (data.role === 'admin' || data.role === 'manager') {
+                            document.getElementById("adminPage").classList.remove("hidden");
+                        }
+                        getRecords();
+                        getUsers();
+                    } else {
+                        msg.textContent = data.msg;
+                    }
+                });
+        }
+
+        function logout() {
+            fetch('logout.php').finally(() => {
+                document.getElementById("loginPage").classList.remove("hidden");
+                document.getElementById("recordsPage").classList.add("hidden");
+                document.getElementById("adminPage").classList.add("hidden");
+            });
+        }
+
+        function saveRecord() {
+            const name = document.getElementById("empName").value;
+            const date = document.getElementById("empDate").value;
+            const phone = document.getElementById("empPhone").value;
+            const value = document.getElementById("empValue").value;
+            if (!name || !date || !phone || !value) return;
+
+            fetch('save_record.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, date, phone, value })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        document.getElementById("empName").value = "";
+                        document.getElementById("empDate").value = "";
+                        document.getElementById("empPhone").value = "";
+                        document.getElementById("empValue").value = "";
+                        getRecords();
+                    } else {
+                        alert(data.msg);
+                    }
+                });
+        }
+
+        function getRecords() {
+            fetch('get_records.php')
+                .then(res => res.json())
+                .then(data => {
+                    const tbody = document.querySelector("#recordsTable tbody");
+                    tbody.innerHTML = "";
+                    data.forEach(r => {
+                        tbody.innerHTML += `<tr>
+                            <td>${r.empName}</td>
+                            <td>${r.empDate}</td>
+                            <td>${r.empPhone}</td>
+                            <td>${r.empValue}</td>
+                        </tr>`;
+                    });
+                });
+        }
+
+        function getUsers() {
+            fetch('users.php?action=get')
+                .then(res => res.json())
+                .then(data => {
+                    const tbody = document.querySelector("#usersTable tbody");
+                    tbody.innerHTML = "";
+                    data.forEach(u => {
+                        if (u.role !== 'admin') {
+                            tbody.innerHTML += `<tr>
+                                <td>${u.username}</td>
+                                <td>${u.role}</td>
+                                <td><button onclick="deleteUser(${u.id})">حذف</button></td>
+                            </tr>`;
+                        } else {
+                            tbody.innerHTML += `<tr>
+                                <td>${u.username}</td>
+                                <td>${u.role}</td>
+                                <td>---</td>
+                            </tr>`;
+                        }
+                    });
+                });
+        }
+
+        function addUser() {
+            const u = document.getElementById("newUser").value.trim();
+            const p = document.getElementById("newPass").value;
+            const r = document.getElementById("newRole").value;
+            const msg = document.getElementById("userMsg");
+
+            fetch('users.php?action=add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: u, password: p, role: r })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        document.getElementById("newUser").value = "";
+                        document.getElementById("newPass").value = "";
+                        msg.textContent = "";
+                        getUsers();
+                    } else {
+                        msg.textContent = data.msg;
+                    }
+                });
+        }
+
+        function deleteUser(id) {
+            if (!confirm("هل تريد حذف هذا المستخدم؟")) return;
+            fetch(`users.php?action=delete&id=${id}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') getUsers();
+                });
+        }
+    </script>
+</body>
+
+</html>
